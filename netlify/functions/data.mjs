@@ -3,7 +3,6 @@ import soap from "soap";
 // Instellingen (aan te passen via Netlify > Site configuration > Environment variables)
 const WSDL = process.env.TABT_WSDL || "http://api.vttl.be/0.7/?wsdl";
 const CLUB_NAME = (process.env.CLUB_NAME || "pellenberg").toLowerCase();
-const TEAMS = (process.env.TEAMS || "A,B,C").split(",").map((t) => t.trim());
 
 const arr = (x) => (x == null ? [] : Array.isArray(x) ? x : [x]);
 const call = async (client, method, args) => (await client[method + "Async"](args))[0];
@@ -77,23 +76,36 @@ function stats(matches) {
 const json = (body, status = 200, extra = {}) =>
   new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json", ...extra } });
 
-export default async () => {
+export default async (req) => {
   try {
+    const debug = new URL(req.url).searchParams.has("debug");
     const client = await soap.createClientAsync(WSDL);
     const season = (await call(client, "GetSeasons", {})).CurrentSeason;
     const club = await findClub(client, season);
-    const teams = await Promise.all(TEAMS.map(async (team) => {
-      const r = await call(client, "GetMatches", { Club: club.id, Team: team, Season: season, WithDetails: true });
-      const matches = arr(r.TeamMatchEntries).map((e) => shape(e, club.id))
-        .sort((a, b) => a.date.localeCompare(b.date));
+    const r = await call(client, "GetMatches", { Club: club.id, Season: season, WithDetails: true });
+    const entries = arr(r.TeamMatchEntries);
+    if (debug) {
+      const t = await call(client, "GetClubTeams", { Club: club.id, Season: season });
+      return json({ club, season, keys: Object.keys(r), count: entries.length, first: entries[0] || null, teamEntries: arr(t.TeamEntries) });
+    }
+    if (!entries.length) throw new Error(`Geen ontmoetingen gevonden voor club ${club.id} in seizoen ${season}. Open /api/data?debug=1 voor details.`);
+    const byTeam = new Map();
+    for (const e of entries) {
+      const full = String(String(e.HomeClub) === String(club.id) ? e.HomeTeam : e.AwayTeam || "");
+      const key = (full.match(/\s([A-Z])$/) || [])[1] || full;
+      if (!byTeam.has(key)) byTeam.set(key, []);
+      byTeam.get(key).push(shape(e, club.id));
+    }
+    const teams = [...byTeam.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([team, list]) => {
+      const matches = list.sort((a, b) => a.date.localeCompare(b.date));
       return { team, matches, players: stats(matches) };
-    }));
+    });
     // Een uur gecachet op het Netlify-CDN: weinig functie-aanroepen, dus binnen het gratis plan.
     return json({ club: club.name, updated: new Date().toISOString(), teams }, 200, {
       "Netlify-CDN-Cache-Control": "public, s-maxage=3600, stale-while-revalidate=86400",
     });
   } catch (e) {
-    return json({ error: String(e && e.message || e) }, 502);
+    return json({ error: String((e && e.message) || e) }, 502);
   }
 };
 
