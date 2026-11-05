@@ -83,7 +83,7 @@ export default async (req) => {
     const season = (await call(client, "GetSeasons", {})).CurrentSeason;
     const club = await findClub(client, season);
     const r = await call(client, "GetMatches", { Club: club.id, Season: season, WithDetails: true });
-    const entries = arr(r.TeamMatchEntries);
+    const entries = arr(r.TeamMatchesEntries || r.TeamMatchEntries);
     if (debug) {
       const t = await call(client, "GetClubTeams", { Club: club.id, Season: season });
       return json({ club, season, keys: Object.keys(r), count: entries.length, first: entries[0] || null, teamEntries: arr(t.TeamEntries) });
@@ -92,7 +92,8 @@ export default async (req) => {
     const byTeam = new Map();
     for (const e of entries) {
       const full = String(String(e.HomeClub) === String(club.id) ? e.HomeTeam : e.AwayTeam || "");
-      const key = (full.match(/\s([A-Z])$/) || [])[1] || full;
+      const key = (full.match(/\s([A-Z])$/) || [])[1];
+      if (!key) continue; // bekerploeg (zonder letter) overslaan
       if (!byTeam.has(key)) byTeam.set(key, []);
       byTeam.get(key).push(shape(e, club.id));
     }
