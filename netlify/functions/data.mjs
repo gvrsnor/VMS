@@ -16,10 +16,19 @@ const person = (p) => ({
 
 async function findClub(client, season) {
   if (process.env.CLUB_ID) return { id: process.env.CLUB_ID, name: process.env.CLUB_ID };
-  const r = await call(client, "GetClubs", { Season: season });
-  const hits = arr(r.ClubEntries).filter((c) => `${c.Name} ${c.LongName}`.toLowerCase().includes(CLUB_NAME));
-  if (!hits.length) throw new Error(`Geen club gevonden met "${CLUB_NAME}". Stel CLUB_ID of CLUB_NAME in.`);
-  const c = hits.find((h) => /vmc/i.test(`${h.Name} ${h.LongName}`)) || hits[0];
+  // Zonder filter en per provincie (1-5) zoeken, want de API filtert soms op ClubCategory.
+  const lists = await Promise.all([undefined, 1, 2, 3, 4, 5].map((c) =>
+    call(client, "GetClubs", c ? { Season: season, ClubCategory: c } : { Season: season })
+      .then((r) => arr(r.ClubEntries), () => [])));
+  const all = new Map();
+  for (const c of lists.flat()) all.set(String(c.UniqueIndex), c);
+  const norm = (s) => String(s).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  const hits = [...all.values()].filter((c) => norm(JSON.stringify(c)).includes(norm(CLUB_NAME)));
+  if (!hits.length) {
+    const sample = [...all.values()].slice(0, 5).map((c) => c.Name || JSON.stringify(c)).join(" | ");
+    throw new Error(`Geen club gevonden met "${CLUB_NAME}" (${all.size} clubs opgehaald, bv. ${sample}). Stel CLUB_ID of CLUB_NAME in.`);
+  }
+  const c = hits.find((h) => /vmc/i.test(JSON.stringify(h))) || hits[0];
   return { id: c.UniqueIndex, name: c.LongName || c.Name };
 }
 
