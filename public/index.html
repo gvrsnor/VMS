@@ -47,6 +47,16 @@ h2{font-size:1.15rem;margin:1.8rem 0 .6rem;font-weight:800}
 .enc+.enc{border-top:1px solid var(--line)}
 .venue{padding:0 .8rem .7rem 3.2rem;font-size:.85rem;color:var(--mute)}
 .venue a,.note a{color:var(--link);font-weight:600}
+.gelijk{color:var(--mute)}
+.form{display:flex;gap:.4rem;align-items:center;flex-wrap:wrap;margin:.2rem 0 .9rem}
+.form .note{margin:0 .3rem 0 0}
+.pill{padding:.1rem .6rem;border-radius:999px;font-size:.82rem;font-weight:700;border:1.5px solid currentColor;font-variant-numeric:tabular-nums}
+.subs .sub{display:flex;flex-wrap:wrap;gap:.5rem;align-items:center;padding:.6rem .8rem}
+.subs .sub+.sub{border-top:1px solid var(--line)}
+.subn{display:flex;align-items:center;gap:.5rem;font-weight:700;min-width:9rem}
+.sub a,.sub button{font:inherit;font-size:.85rem;color:var(--link);border:1px solid var(--line);border-radius:999px;padding:.25rem .8rem;background:var(--card);text-decoration:none;cursor:pointer}
+.season{margin:0 0 .9rem;font-weight:800;font-size:1.05rem;color:var(--link)}
+tr.me td{font-weight:700;background:color-mix(in srgb,var(--A) 10%,var(--card))}
 .note{color:var(--mute);font-size:.9rem;margin:.2rem 0 1rem}
 .lnk{font:inherit;font-weight:700;background:none;border:0;padding:0;color:inherit;cursor:pointer;text-align:left}
 .lnk::before{content:"▸";display:inline-block;width:1.1rem;color:var(--mute);transition:transform .15s}
@@ -95,7 +105,7 @@ const h = (t, a = {}, ...k) => {
   e.append(...k.filter((x) => x != null && x !== false));
   return e;
 };
-const PAGES = { kalender: "Kalender", uitslagen: "Uitslagen", spelers: "Spelers" };
+const PAGES = { kalender: "Kalender", uitslagen: "Uitslagen", klassementen: "Klassementen", spelers: "Spelers" };
 const ORDER = "A B0 B2 B4 B6 C0 C2 C4 C6 D0 D2 D4 D6 E0 E2 E4 E6 NG".split(" ");
 const rk = (r) => { const i = ORDER.indexOf(r); return i < 0 ? 99 : i; };
 const fmt = (d, o) => new Date(d + "T12:00:00").toLocaleDateString("nl-BE", o);
@@ -118,6 +128,14 @@ function vs(m) {
   return h("span", { class: "vs" }, h("b", {}, m.home), " vs ", h("b", {}, m.away));
 }
 
+function history(m) {
+  const opp = m.isHome ? m.away : m.home;
+  const cur = S.data.teams.flatMap((t) => t.matches).filter((x) => x.ours != null && (x.isHome ? x.away : x.home) === opp && (!m.date || x.date < m.date))
+    .map((x) => ({ date: x.date, ours: x.ours, theirs: x.theirs, prev: false }));
+  const old = (S.data.history || []).filter((x) => x.opp === opp).map((x) => ({ ...x, prev: true }));
+  return [...cur, ...old].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 4);
+}
+
 function encounter(m) {
   const res = result(m), pl = m.ours != null;
   const d = h("details", {}, h("summary", {}, badge(m.team),
@@ -135,8 +153,25 @@ function encounter(m) {
     d.append(ul);
   }
   const v = !pl && !m.isHome && m.venue;
+  const hs = pl ? [] : history(m);
+  const hl = hs.length ? h("div", { class: "venue" }, "Eerder tegen deze ploeg: ", ...hs.flatMap((x, i) => [i ? " · " : "",
+    h("b", { class: x.ours > x.theirs ? "gewonnen" : x.ours < x.theirs ? "verloren" : "gelijk" }, `${x.ours} - ${x.theirs}`),
+    ` (${fmt(x.date, { day: "numeric", month: "short", year: "numeric" })}${x.prev ? ", vorig seizoen" : ""})`])) : null;
   return h("div", { class: "enc" }, d, v ? h("div", { class: "venue" }, "📍 " + [v.name, v.address].filter(Boolean).join(", ") + " · ",
-    h("a", { href: "https://www.google.com/maps/search/?api=1&query=" + encodeURIComponent(v.address), target: "_blank", rel: "noopener" }, "Route in Google Maps")) : null);
+    h("a", { href: "https://www.google.com/maps/search/?api=1&query=" + encodeURIComponent(v.address), target: "_blank", rel: "noopener" }, "Route in Google Maps")) : null, hl);
+}
+
+function subscribe() {
+  const row = (label, f, team) => {
+    const path = `${location.host}/api/kalender/${f}.ics`, web = "webcal://" + path;
+    return h("div", { class: "sub" }, h("span", { class: "subn" }, team ? badge(team) : null, label),
+      h("a", { href: web }, "Apple / Outlook"),
+      h("a", { href: "https://calendar.google.com/calendar/r?cid=" + web, target: "_blank", rel: "noopener" }, "Google Agenda"),
+      h("button", { onclick: (e) => navigator.clipboard.writeText("https://" + path).then(() => (e.target.textContent = "Gekopieerd ✓")) }, "Kopieer link"));
+  };
+  return [h("h2", {}, "Kalender op je gsm"),
+    h("p", { class: "note" }, "Abonneer op een ploeg en nieuwe ontmoetingen, wijzigingen en uitslagen komen vanzelf in je agenda. Google Agenda ververst abonnementen traag; Apple en Outlook meestal sneller."),
+    h("div", { class: "card subs" }, ...S.data.teams.map((t) => row("Ploeg " + t.team, t.team, t.team)), row("Alle ploegen", "alle", null))];
 }
 
 function calendar() {
@@ -166,13 +201,35 @@ function calendar() {
       h("button", { onclick: step(1), "aria-label": "Volgende maand" }, "›")),
     g,
     h("h2", {}, "Ontmoetingen deze maand"),
-    list.length ? h("div", { class: "card" }, ...list.map(encounter)) : h("p", { class: "empty" }, "Geen ontmoetingen in deze maand.")];
+    list.length ? h("div", { class: "card" }, ...list.map(encounter)) : h("p", { class: "empty" }, "Geen ontmoetingen in deze maand."), ...subscribe()];
 }
 
 function results() {
-  const all = sel(), up = all.filter((m) => m.ours == null), done = all.filter((m) => m.ours != null).reverse();
-  const block = (title, l) => [h("h2", {}, title), l.length ? h("div", { class: "card" }, ...l.map(encounter)) : h("p", { class: "empty" }, "Niets te tonen.")];
-  return [...block("Komende ontmoetingen", up), ...block("Gespeelde ontmoetingen", done)];
+  const all = sel(), done = all.filter((m) => m.ours != null).reverse();
+  const next = S.data.teams.filter((t) => S.on.has(t.team)).map((t) => all.find((m) => m.team === t.team && m.ours == null))
+    .filter(Boolean).sort((a, b) => (a.date || "9").localeCompare(b.date || "9"));
+  const block = (title, l, none) => [h("h2", {}, title), l.length ? h("div", { class: "card" }, ...l.map(encounter)) : h("p", { class: "empty" }, none)];
+  return [...block(next.length > 1 ? "Eerstvolgende ontmoetingen" : "Eerstvolgende ontmoeting", next, "Geen komende ontmoetingen."),
+    ...block("Gespeelde ontmoetingen", done, "Nog geen ontmoetingen gespeeld.")];
+}
+
+function standings() {
+  const ours = new Set(S.data.teams.flatMap((t) => t.matches.map((m) => (m.isHome ? m.home : m.away))));
+  const cols = [["#", "Positie"], ["Ploeg", ""], ["Gesp.", "Gespeelde ontmoetingen"], ["W", "Gewonnen"], ["G", "Gelijk"], ["V", "Verloren"],
+    ["Matchen", "Individuele matchen gewonnen - verloren"], ["Sets", "Sets gewonnen - verloren"], ["Ptn", "Punten"]];
+  const v = (x) => (x == null ? "–" : x), pair = (a, b) => (a == null || b == null ? "–" : `${a} - ${b}`);
+  const out = [];
+  for (const t of S.data.teams) {
+    out.push(h("h2", {}, "Ploeg " + t.team), t.division ? h("p", { class: "note" }, t.division) : null);
+    const last = t.matches.filter((m) => m.ours != null).slice(-5);
+    if (last.length) out.push(h("div", { class: "form" }, h("span", { class: "note" }, "Laatste " + last.length + " (W gewonnen, G gelijk, V verloren):"),
+      ...last.map((m) => { const r = result(m); return h("span", { class: "pill " + r, title: `${m.home} vs ${m.away}` }, `${r === "gewonnen" ? "W" : r === "verloren" ? "V" : "G"} ${m.ours} - ${m.theirs}`); })));
+    if (!t.ranking || !t.ranking.length) { out.push(h("p", { class: "empty" }, "Rangschikking niet beschikbaar." + (t.rankingError ? " " + t.rankingError : ""))); continue; }
+    const rows = t.ranking.map((r) => h("tr", { class: ours.has(r.team) ? "me" : "" }, h("td", {}, v(r.pos)), h("td", {}, r.team), h("td", {}, v(r.played)),
+      h("td", {}, v(r.won)), h("td", {}, v(r.draw)), h("td", {}, v(r.lost)), h("td", {}, pair(r.mw, r.ml)), h("td", {}, pair(r.sw, r.sl)), h("td", {}, v(r.points))));
+    out.push(h("div", { class: "card wrap" }, h("table", {}, h("thead", {}, h("tr", {}, ...cols.map(([a, b]) => h("th", { title: b }, a)))), h("tbody", {}, ...rows))));
+  }
+  return out;
 }
 
 function players() {
@@ -194,23 +251,25 @@ function players() {
   const tb = h("tbody");
   for (const p of list) {
     const e = st.get(p.id), single = e && e.single[0] + e.single[1] > 0;
-    const more = h("tr", { class: "more", hidden: "" }, h("td", { colspan: "4" },
+    const more = h("tr", { class: "more", hidden: "" }, h("td", { colspan: "3" },
       single ? h("p", {}, "Resultaten in enkel per klassement van de tegenstander (gewonnen - verloren)") : h("p", {}, "Nog geen enkelmatchen gespeeld dit seizoen."),
       single ? h("div", { class: "vsgrid" }, ...Object.entries(e.vs).sort(([a], [b]) => rk(a) - rk(b)).map(([k, v]) => h("div", {}, h("span", {}, k), h("b", {}, wl(v))))) : null));
     const btn = h("button", { class: "lnk", "aria-expanded": "false", onclick: () => { const o = more.hidden; more.hidden = !o; btn.setAttribute("aria-expanded", String(o)); } }, p.name);
-    tb.append(h("tr", {}, h("td", {}, btn), h("td", {}, p.rank), h("td", {}, e ? wl(e.single) : "–"), h("td", {}, e ? wl(e.double) : "–")), more);
+    tb.append(h("tr", {}, h("td", {}, btn), h("td", {}, p.rank), h("td", {}, e ? wl(e.single) : "–")), more);
   }
   return [h("h2", {}, `Spelers (${list.length})`),
     h("p", { class: "note" }, "Klik op een speler voor meer details. Je verwachte klassement op het einde van het seizoen kan je berekenen op ",
       h("a", { href: "https://klassement.ttcoach.be/?lang=nl", target: "_blank", rel: "noopener" }, "klassement.ttcoach.be"), " (indicatief, niet van de VTTL)."),
-    h("div", { class: "card wrap" }, h("table", {}, h("thead", {}, h("tr", {}, ...["Speler", "Klassement", "Enkel", "Dubbel"].map((x) => h("th", {}, x)))), tb))];
+    h("div", { class: "card wrap" }, h("table", {}, h("thead", {}, h("tr", {}, ...["Speler", "Klassement", "Enkel"].map((x) => h("th", {}, x)))), tb))];
 }
+
+const seasonLabel = () => { const y = 1999 + Number(S.data.season); return `${y}-${y + 1}`; };
 
 function render() {
   const page = (location.hash.slice(1) in PAGES) ? location.hash.slice(1) : "kalender";
   $("#pages").replaceChildren(...Object.entries(PAGES).map(([k, v]) => h("a", { href: "#" + k, ...(k === page ? { "aria-current": "page" } : {}) }, v)));
-  const body = { kalender: calendar, uitslagen: results, spelers: players }[page]();
-  $("#view").replaceChildren(...(page === "spelers" ? body : [filters(), ...body]));
+  const body = { kalender: calendar, uitslagen: results, klassementen: standings, spelers: players }[page]();
+  $("#view").replaceChildren(h("p", { class: "season" }, "Seizoen " + seasonLabel()), ...(page === "spelers" || page === "klassementen" ? body : [filters(), ...body]));
 }
 
 fetch("/api/data").then((r) => r.json()).then((d) => {
