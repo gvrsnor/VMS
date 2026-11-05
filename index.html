@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pingpong – kalender en uitslagen</title>
+<style>
+:root{--bg:#f4f5f0;--ink:#1c2620;--mute:#5e6a62;--line:#d9ddd3;--blue:#1d4f8f;--win:#23744a;--loss:#a8372b}
+@media (prefers-color-scheme:dark){:root{--bg:#161b18;--ink:#e8ece6;--mute:#9aa59d;--line:#2c352f;--blue:#7fb0ee;--win:#5bc08a;--loss:#f08a7d}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 system-ui,sans-serif}
+main{max-width:760px;margin:0 auto;padding:2rem 1rem 4rem}
+h1{font:700 1.8rem/1.2 Georgia,serif;margin:0}
+h2{font:700 1.15rem Georgia,serif;margin:2.2rem 0 .6rem}
+.meta{color:var(--mute);margin:.3rem 0 1.2rem;font-size:.9rem}
+nav{display:flex;gap:.5rem}
+nav button{font:inherit;padding:.45rem 1rem;border:1px solid var(--line);background:none;color:inherit;border-radius:999px;cursor:pointer}
+nav button[aria-pressed=true]{background:var(--blue);border-color:var(--blue);color:var(--bg)}
+button:focus-visible,summary:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+details{border-top:1px solid var(--line)}
+details:last-of-type{border-bottom:1px solid var(--line)}
+summary{display:grid;grid-template-columns:7.5rem 1fr auto;gap:.8rem;padding:.65rem .2rem;cursor:pointer;list-style:none}
+summary::-webkit-details-marker{display:none}
+.d{color:var(--mute);font-variant-numeric:tabular-nums}
+.s{font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap}
+.s.gewonnen{color:var(--win)}.s.verloren{color:var(--loss)}.s.gepland{color:var(--mute);font-weight:400}
+ul.g{list-style:none;margin:0;padding:0 .2rem .8rem}
+ul.g li{padding:.25rem 0;font-size:.93rem}
+ul.g b{display:inline-block;min-width:3.2rem;font-variant-numeric:tabular-nums}
+ul.g .w b{color:var(--win)}ul.g .l b{color:var(--loss)}
+.r{color:var(--mute);font-size:.8rem;margin-right:.4rem}
+.wrap{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:.93rem}
+th,td{text-align:left;padding:.45rem .6rem .45rem 0;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-weight:600;color:var(--mute)}
+td:nth-child(3),td:nth-child(4){font-variant-numeric:tabular-nums;white-space:nowrap}
+.err{color:var(--loss)}
+@media (max-width:520px){summary{grid-template-columns:1fr auto}.d{grid-column:1/-1}}
+</style>
+</head>
+<body>
+<main>
+  <h1 id="club">Pingpong</h1>
+  <p class="meta" id="meta">Gegevens laden…</p>
+  <nav id="tabs" aria-label="Ploeg"></nav>
+  <div id="view"></div>
+</main>
+<script>
+const $ = (s) => document.querySelector(s);
+const h = (t, a = {}, ...k) => {
+  const e = document.createElement(t);
+  for (const [x, v] of Object.entries(a)) x === "class" ? (e.className = v) : e.setAttribute(x, v);
+  e.append(...k.filter((x) => x != null));
+  return e;
+};
+const fmt = (d) => new Date(d + "T12:00:00").toLocaleDateString("nl-BE", { weekday: "short", day: "numeric", month: "short" });
+const names = (l) => l.map((p) => `${p.name} (${p.rank})`).join(" & ") || "—";
+
+function encounter(m) {
+  const played = m.ours != null;
+  const res = !played ? "gepland" : m.ours > m.theirs ? "gewonnen" : m.ours < m.theirs ? "verloren" : "gelijk";
+  const opp = m.isHome ? m.away : m.home;
+  const d = h("details", {}, h("summary", {},
+    h("span", { class: "d" }, fmt(m.date) + (m.time ? " " + m.time : "")),
+    h("span", {}, (m.isHome ? "Thuis tegen " : "Uit bij ") + opp),
+    h("span", { class: "s " + res }, played ? `${m.ours}–${m.theirs} ${res}` : res)));
+  if (m.games.length) {
+    const ul = h("ul", { class: "g" });
+    for (const g of m.games) {
+      const won = g.os > g.ts;
+      ul.append(h("li", { class: won ? "w" : "l" }, h("b", {}, `${g.os}–${g.ts}`),
+        h("span", { class: "r" }, g.forfeit ? "forfait" : won ? "gewonnen" : "verloren"),
+        `${names(g.ours)} tegen ${names(g.theirs)}`));
+    }
+    d.append(ul);
+  }
+  return d;
+}
+
+function playersTable(list) {
+  if (!list.length) return h("p", { class: "meta" }, "Nog geen individuele resultaten.");
+  const head = ["Speler", "Klassement", "Enkel", "Dubbel", "Tegenstanders (gewonnen–verloren)"];
+  const rows = list.map((p) => h("tr", {},
+    h("td", {}, p.name), h("td", {}, p.rank), h("td", {}, p.single.join("–")), h("td", {}, p.double.join("–")),
+    h("td", {}, Object.entries(p.vs).sort().map(([k, [w, l]]) => `${k}: ${w}–${l}`).join(", "))));
+  return h("div", { class: "wrap" }, h("table", {},
+    h("thead", {}, h("tr", {}, ...head.map((x) => h("th", {}, x)))), h("tbody", {}, ...rows)));
+}
+
+function show(data, i) {
+  const t = data.teams[i];
+  $("#tabs").replaceChildren(...data.teams.map((x, j) =>
+    h("button", { "aria-pressed": String(j === i), onclick: `show(DATA,${j})` }, "Ploeg " + x.team)));
+  $("#view").replaceChildren(
+    h("h2", {}, "Kalender en uitslagen"), ...t.matches.map(encounter),
+    h("h2", {}, "Spelers"), playersTable(t.players));
+}
+
+let DATA;
+fetch("/api/data").then((r) => r.json()).then((d) => {
+  if (d.error) throw new Error(d.error);
+  DATA = d;
+  $("#club").textContent = d.club;
+  $("#meta").textContent = "Bijgewerkt op " + new Date(d.updated).toLocaleString("nl-BE", { dateStyle: "medium", timeStyle: "short" });
+  show(d, 0);
+}).catch((e) => {
+  $("#meta").textContent = "";
+  $("#view").replaceChildren(h("p", { class: "err" }, "De gegevens konden niet geladen worden: " + e.message));
+});
+</script>
+</body>
+</html>
