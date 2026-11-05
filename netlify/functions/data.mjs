@@ -14,7 +14,7 @@ const person = (p) => ({
 });
 
 async function findClub(client, season) {
-  if (process.env.CLUB_ID) return { id: process.env.CLUB_ID, name: process.env.CLUB_ID };
+  if (process.env.CLUB_ID) return { id: process.env.CLUB_ID, name: process.env.CLUB_ID, clubs: new Map() };
   // Zonder filter en per provincie (1-5) zoeken, want de API filtert soms op ClubCategory.
   const lists = await Promise.all([undefined, 1, 2, 3, 4, 5].map((c) =>
     call(client, "GetClubs", c ? { Season: season, ClubCategory: c } : { Season: season })
@@ -28,10 +28,22 @@ async function findClub(client, season) {
     throw new Error(`Geen club gevonden met "${CLUB_NAME}" (${all.size} clubs opgehaald, bv. ${sample}). Stel CLUB_ID of CLUB_NAME in.`);
   }
   const c = hits.find((h) => /vmc/i.test(JSON.stringify(h))) || hits[0];
-  return { id: c.UniqueIndex, name: c.LongName || c.Name };
+  return { id: c.UniqueIndex, name: c.LongName || c.Name, clubs: all };
 }
 
-function shape(e, clubId) {
+function venueOf(e, clubs) {
+  let v = e.VenueEntry || (e.Venue && typeof e.Venue === "object" ? e.Venue : null);
+  if (!v) {
+    const c = clubs.get(String(e.HomeClub));
+    const list = arr(c && (c.VenueEntries || c.Venues));
+    v = list.find((x) => String(x.ClubVenue ?? x.Id) === String(e.Venue)) || list[0];
+  }
+  if (!v) return null;
+  const address = [v.Street, v.Town].filter(Boolean).join(", ");
+  return address ? { name: v.Name || "", address } : null;
+}
+
+function shape(e, clubId, clubs) {
   const home = String(e.HomeClub) === String(clubId);
   const score = /^\d+\s*-\s*\d+$/.test(e.Score || "") ? e.Score.split("-").map(Number) : [null, null];
   const out = {
@@ -39,6 +51,7 @@ function shape(e, clubId) {
     home: e.HomeTeam, away: e.AwayTeam, isHome: home,
     ours: home ? score[0] : score[1], theirs: home ? score[1] : score[0], games: [],
   };
+  out.venue = home ? null : venueOf(e, clubs);
   const d = e.MatchDetails;
   if (d && d.DetailsCreated !== false) {
     const idx = (side) => new Map(arr(side && side.Players).map((p) => [String(p.UniqueIndex), person(p)]));
@@ -79,11 +92,13 @@ export default async (req) => {
     if (!entries.length) throw new Error(`Geen ontmoetingen gevonden voor club ${club.id} in seizoen ${season}. Open /api/data?debug=1 voor details.`);
     const byTeam = new Map();
     for (const e of entries) {
+      const opp = String(String(e.HomeClub) === String(club.id) ? e.AwayTeam : e.HomeTeam || "");
+      if (/^vrij\b/i.test(opp.trim())) continue; // vrije speeldag, geen echte ontmoeting
       const full = String(String(e.HomeClub) === String(club.id) ? e.HomeTeam : e.AwayTeam || "");
       const key = (full.match(/\s([A-Z])$/) || [])[1];
       if (!key) continue; // bekerploeg (zonder letter) overslaan
       if (!byTeam.has(key)) byTeam.set(key, []);
-      byTeam.get(key).push(shape(e, club.id));
+      byTeam.get(key).push(shape(e, club.id, club.clubs));
     }
     const teams = [...byTeam.entries()].sort(([a], [b]) => a.localeCompare(b))
       .map(([team, list]) => ({ team, matches: list.sort((a, b) => a.date.localeCompare(b.date)) }));
