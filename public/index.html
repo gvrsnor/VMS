@@ -3,19 +3,22 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E🏓%3C/text%3E%3C/svg%3E">
 <title>Pingpong – kalender en uitslagen</title>
 <style>
-:root{--bg:#f1f4f6;--card:#fff;--ink:#14212b;--mute:#5b6b78;--line:#dbe2e8;--head:#0f3d63;--win:#1f7a4d;--loss:#b03a2e;--A:#1d5fa8;--B:#c2611a;--C:#23806d;--font:"Bahnschrift","Segoe UI",system-ui,sans-serif}
-@media (prefers-color-scheme:dark){:root{--bg:#0f161c;--card:#18222b;--ink:#e6edf2;--mute:#93a3b0;--line:#2a3640;--head:#0b2b46;--win:#5cc590;--loss:#f2897c;--A:#6aa8f0;--B:#f0a064;--C:#5cc7b2}}
+:root{--bg:#f1f4f6;--card:#fff;--ink:#14212b;--mute:#5b6b78;--line:#dbe2e8;--head:#0072bc;--link:#0072bc;--win:#1f7a4d;--loss:#b03a2e;--A:#1d5fa8;--B:#c2611a;--C:#23806d;--font:"Bahnschrift","Segoe UI",system-ui,sans-serif}
+@media (prefers-color-scheme:dark){:root{--bg:#0f161c;--card:#18222b;--ink:#e6edf2;--mute:#93a3b0;--line:#2a3640;--head:#2a8fd6;--link:#6ab6f0;--win:#5cc590;--loss:#f2897c;--A:#6aa8f0;--B:#f0a064;--C:#5cc7b2}}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 var(--font)}
-header{background:var(--head);color:#fff;padding:1.6rem 1rem 0;border-bottom:4px solid #fff}
+header{background:#fff;color:#14212b;padding:.9rem 1rem 0;border-bottom:4px solid #f6931f}
 .in{max-width:900px;margin:0 auto}
-h1{margin:0;font-size:2.1rem;line-height:1.1;font-weight:800;letter-spacing:-.02em}
-.meta{margin:.3rem 0 1rem;color:#b8cde0;font-size:.85rem}
+.top{display:flex;align-items:center;justify-content:space-between;gap:1rem;margin-bottom:.4rem}
+h1{margin:0;line-height:0}
+.logo{height:4.4rem;width:auto;display:block}
+.meta{margin:0;color:#5b6b78;font-size:.8rem;text-align:right}
 .pages{display:flex;gap:1.4rem}
-.pages a{color:#b8cde0;text-decoration:none;padding:.5rem 0;border-bottom:3px solid transparent;font-weight:600}
-.pages a[aria-current=page]{color:#fff;border-color:#fff}
+.pages a{color:#3f5262;text-decoration:none;padding:.5rem 0;border-bottom:3px solid transparent;font-weight:700}
+.pages a[aria-current=page]{color:#0072bc;border-color:#0072bc}
 main{max-width:900px;margin:0 auto;padding:1.2rem 1rem 4rem}
 a:focus-visible,button:focus-visible,input:focus-visible+span,summary:focus-visible{outline:2px solid var(--A);outline-offset:2px}
 h2{font-size:1.15rem;margin:1.8rem 0 .6rem;font-weight:800}
@@ -41,7 +44,18 @@ h2{font-size:1.15rem;margin:1.8rem 0 .6rem;font-weight:800}
 .chip em{font-style:normal;font-weight:800;color:var(--c)}
 .chip span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .card{background:var(--card);border:1px solid var(--line);border-radius:10px;overflow:hidden}
-details+details{border-top:1px solid var(--line)}
+.enc+.enc{border-top:1px solid var(--line)}
+.venue{padding:0 .8rem .7rem 3.2rem;font-size:.85rem;color:var(--mute)}
+.venue a,.note a{color:var(--link);font-weight:600}
+.note{color:var(--mute);font-size:.9rem;margin:.2rem 0 1rem}
+.lnk{font:inherit;font-weight:700;background:none;border:0;padding:0;color:inherit;cursor:pointer;text-align:left}
+.lnk::before{content:"▸";display:inline-block;width:1.1rem;color:var(--mute);transition:transform .15s}
+.lnk[aria-expanded=true]::before{transform:rotate(90deg)}
+tr.more td{background:color-mix(in srgb,var(--bg) 60%,var(--card));padding:.7rem .7rem .9rem 2.2rem}
+tr.more p{margin:0 0 .5rem;font-size:.85rem;color:var(--mute)}
+.vsgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(8.5rem,1fr));gap:.4rem}
+.vsgrid div{display:flex;justify-content:space-between;gap:.5rem;border:1px solid var(--line);border-radius:8px;padding:.25rem .6rem;background:var(--card)}
+.vsgrid b{font-variant-numeric:tabular-nums}
 summary{display:grid;grid-template-columns:auto 1fr auto;gap:.2rem .8rem;align-items:center;padding:.7rem .8rem;cursor:pointer;list-style:none}
 summary::-webkit-details-marker{display:none}
 .d{grid-column:2;grid-row:1;font-size:.8rem;color:var(--mute)}
@@ -66,8 +80,10 @@ td:nth-child(2),td:nth-child(3),td:nth-child(4){white-space:nowrap;font-variant-
 </head>
 <body>
 <header><div class="in">
-  <h1 id="club">Pingpong</h1>
-  <p class="meta" id="meta">Gegevens laden…</p>
+  <div class="top">
+    <h1><img class="logo" src="logo.png" width="373" height="157" alt="Tafeltennisclub VMS"></h1>
+    <p class="meta" id="meta">Gegevens laden…</p>
+  </div>
   <nav class="pages" id="pages"></nav>
 </div></header>
 <main id="view"></main>
@@ -86,7 +102,8 @@ const fmt = (d, o) => new Date(d + "T12:00:00").toLocaleDateString("nl-BE", o);
 const names = (l) => l.map((p) => `${p.name} (${p.rank})`).join(" & ") || "—";
 const S = { data: null, on: new Set(), month: null };
 
-const sel = () => S.data.teams.filter((t) => S.on.has(t.team)).flatMap((t) => t.matches.map((m) => ({ ...m, team: t.team })));
+const sel = () => S.data.teams.filter((t) => S.on.has(t.team)).flatMap((t) => t.matches.map((m) => ({ ...m, team: t.team })))
+  .sort((a, b) => (a.date || "9").localeCompare(b.date || "9"));
 const badge = (t) => h("i", { class: "badge t-" + t }, t);
 const result = (m) => m.ours == null ? "gepland" : m.ours > m.theirs ? "gewonnen" : m.ours < m.theirs ? "verloren" : "gelijk";
 
@@ -102,23 +119,24 @@ function vs(m) {
 }
 
 function encounter(m) {
-  const res = result(m);
-  const d = h("details", {}, h("summary", {},
-    badge(m.team),
-    h("span", { class: "d" }, fmt(m.date, { weekday: "long", day: "numeric", month: "long" }) + (m.time ? " · " + m.time : "")),
+  const res = result(m), pl = m.ours != null;
+  const d = h("details", {}, h("summary", {}, badge(m.team),
+    h("span", { class: "d" }, m.date ? fmt(m.date, { weekday: "long", day: "numeric", month: "long" }) + (m.time ? " · " + m.time : "") : "Datum nog niet bekend"),
     vs(m),
-    h("span", { class: "s " + res }, m.ours == null ? "gepland" : `${m.ours}–${m.theirs}`, m.ours == null ? null : h("small", {}, res))));
+    h("span", { class: "s " + res }, pl ? `${m.ours} - ${m.theirs}` : "gepland", pl ? h("small", {}, res) : null)));
   if (m.games.length) {
     const ul = h("ul", { class: "g" });
     for (const g of m.games) {
       const won = g.os > g.ts;
-      ul.append(h("li", { class: won ? "w" : "l" }, h("b", {}, `${g.os}–${g.ts}`),
+      ul.append(h("li", { class: won ? "w" : "l" }, h("b", {}, `${g.os} - ${g.ts}`),
         h("span", { class: "r" }, g.forfeit ? "forfait" : won ? "gewonnen" : "verloren"),
         `${names(g.ours)} tegen ${names(g.theirs)}`));
     }
     d.append(ul);
   }
-  return d;
+  const v = !pl && !m.isHome && m.venue;
+  return h("div", { class: "enc" }, d, v ? h("div", { class: "venue" }, "📍 " + [v.name, v.address].filter(Boolean).join(", ") + " · ",
+    h("a", { href: "https://www.google.com/maps/search/?api=1&query=" + encodeURIComponent(v.address), target: "_blank", rel: "noopener" }, "Route in Google Maps")) : null);
 }
 
 function calendar() {
@@ -136,7 +154,7 @@ function calendar() {
     for (const m of by[k] || []) {
       const opp = m.isHome ? m.away : m.home;
       cell.append(h("div", { class: "chip t-" + m.team, title: `${m.home} vs ${m.away}` },
-        h("em", {}, m.team), h("span", {}, m.ours == null ? `${m.time} ${opp}` : `${m.ours}–${m.theirs} ${opp}`)));
+        h("em", {}, m.team), h("span", {}, m.ours == null ? `${m.time} ${opp}` : `${m.ours} - ${m.theirs} ${opp}`)));
     }
     g.append(cell);
   }
@@ -159,7 +177,7 @@ function results() {
 
 function players() {
   const st = new Map();
-  for (const m of sel()) for (const g of m.games) {
+  for (const m of S.data.teams.flatMap((t) => t.matches)) for (const g of m.games) {
     if (g.forfeit || g.os === g.ts) continue;
     const won = g.os > g.ts, dbl = g.ours.length > 1;
     for (const p of g.ours) {
@@ -172,26 +190,33 @@ function players() {
   const people = new Map(S.data.members.map((p) => [p.id, p]));
   for (const m of S.data.teams.flatMap((t) => t.matches)) for (const g of m.games) for (const p of g.ours) if (!people.has(p.id)) people.set(p.id, p);
   const list = [...people.values()].sort((a, b) => rk(a.rank) - rk(b.rank) || a.name.localeCompare(b.name));
-  const head = ["Speler", "Klassement", "Enkel", "Dubbel", "Tegenstanders (gewonnen–verloren)"];
-  const rows = list.map((p) => { const e = st.get(p.id);
-    return h("tr", {}, h("td", {}, p.name), h("td", {}, p.rank), h("td", {}, e ? e.single.join("–") : "–"), h("td", {}, e ? e.double.join("–") : "–"),
-      h("td", {}, e ? Object.entries(e.vs).sort(([a], [b]) => rk(a) - rk(b)).map(([k, [w, l]]) => `${k}: ${w}–${l}`).join(", ") : "")); });
+  const wl = (a) => a.join(" - ");
+  const tb = h("tbody");
+  for (const p of list) {
+    const e = st.get(p.id), single = e && e.single[0] + e.single[1] > 0;
+    const more = h("tr", { class: "more", hidden: "" }, h("td", { colspan: "4" },
+      single ? h("p", {}, "Resultaten in enkel per klassement van de tegenstander (gewonnen - verloren)") : h("p", {}, "Nog geen enkelmatchen gespeeld dit seizoen."),
+      single ? h("div", { class: "vsgrid" }, ...Object.entries(e.vs).sort(([a], [b]) => rk(a) - rk(b)).map(([k, v]) => h("div", {}, h("span", {}, k), h("b", {}, wl(v))))) : null));
+    const btn = h("button", { class: "lnk", "aria-expanded": "false", onclick: () => { const o = more.hidden; more.hidden = !o; btn.setAttribute("aria-expanded", String(o)); } }, p.name);
+    tb.append(h("tr", {}, h("td", {}, btn), h("td", {}, p.rank), h("td", {}, e ? wl(e.single) : "–"), h("td", {}, e ? wl(e.double) : "–")), more);
+  }
   return [h("h2", {}, `Spelers (${list.length})`),
-    h("div", { class: "card wrap" }, h("table", {}, h("thead", {}, h("tr", {}, ...head.map((x) => h("th", {}, x)))), h("tbody", {}, ...rows)))];
+    h("p", { class: "note" }, "Klik op een speler voor meer details. Je verwachte klassement op het einde van het seizoen kan je berekenen op ",
+      h("a", { href: "https://klassement.ttcoach.be/?lang=nl", target: "_blank", rel: "noopener" }, "klassement.ttcoach.be"), " (indicatief, niet van de VTTL)."),
+    h("div", { class: "card wrap" }, h("table", {}, h("thead", {}, h("tr", {}, ...["Speler", "Klassement", "Enkel", "Dubbel"].map((x) => h("th", {}, x)))), tb))];
 }
 
 function render() {
   const page = (location.hash.slice(1) in PAGES) ? location.hash.slice(1) : "kalender";
   $("#pages").replaceChildren(...Object.entries(PAGES).map(([k, v]) => h("a", { href: "#" + k, ...(k === page ? { "aria-current": "page" } : {}) }, v)));
   const body = { kalender: calendar, uitslagen: results, spelers: players }[page]();
-  $("#view").replaceChildren(filters(), ...body);
+  $("#view").replaceChildren(...(page === "spelers" ? body : [filters(), ...body]));
 }
 
 fetch("/api/data").then((r) => r.json()).then((d) => {
   if (d.error) throw new Error(d.error);
   S.data = d; S.on = new Set(d.teams.map((t) => t.team));
   const n = new Date(); S.month = new Date(n.getFullYear(), n.getMonth(), 1);
-  $("#club").textContent = d.club;
   $("#meta").textContent = "Bijgewerkt op " + new Date(d.updated).toLocaleString("nl-BE", { dateStyle: "medium", timeStyle: "short" });
   render();
 }).catch((e) => { $("#meta").textContent = ""; $("#view").replaceChildren(h("p", { class: "err" }, "De gegevens konden niet geladen worden: " + e.message)); });
