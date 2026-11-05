@@ -58,21 +58,6 @@ function shape(e, clubId) {
   return out;
 }
 
-function stats(matches) {
-  const s = new Map();
-  for (const m of matches) for (const g of m.games) {
-    if (g.forfeit || g.os === g.ts) continue;
-    const won = g.os > g.ts, dbl = g.ours.length > 1;
-    for (const p of g.ours) {
-      const e = s.get(p.id) || { ...p, single: [0, 0], double: [0, 0], vs: {} };
-      e[dbl ? "double" : "single"][won ? 0 : 1]++;
-      if (!dbl) { const k = (g.theirs[0] && g.theirs[0].rank) || "?"; (e.vs[k] ||= [0, 0])[won ? 0 : 1]++; }
-      s.set(p.id, e);
-    }
-  }
-  return [...s.values()].sort((a, b) => b.single[0] - a.single[0] || a.single[1] - b.single[1]);
-}
-
 const json = (body, status = 200, extra = {}) =>
   new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json", ...extra } });
 
@@ -84,9 +69,12 @@ export default async (req) => {
     const club = await findClub(client, season);
     const r = await call(client, "GetMatches", { Club: club.id, Season: season, WithDetails: true });
     const entries = arr(r.TeamMatchesEntries || r.TeamMatchEntries);
+    const mem = await call(client, "GetMembers", { Club: club.id, Season: season }).catch((e) => ({ error: String(e.message || e) }));
+    const members = arr(mem.MemberEntries || mem.MembersEntries).map((m) => person(m));
     if (debug) {
       const t = await call(client, "GetClubTeams", { Club: club.id, Season: season });
-      return json({ club, season, keys: Object.keys(r), count: entries.length, first: entries[0] || null, teamEntries: arr(t.TeamEntries) });
+      return json({ club, season, count: entries.length, first: entries[0] || null, teamEntries: arr(t.TeamEntries),
+        membersKeys: Object.keys(mem), membersCount: members.length, membersSample: members.slice(0, 3), membersError: mem.error });
     }
     if (!entries.length) throw new Error(`Geen ontmoetingen gevonden voor club ${club.id} in seizoen ${season}. Open /api/data?debug=1 voor details.`);
     const byTeam = new Map();
@@ -97,12 +85,10 @@ export default async (req) => {
       if (!byTeam.has(key)) byTeam.set(key, []);
       byTeam.get(key).push(shape(e, club.id));
     }
-    const teams = [...byTeam.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([team, list]) => {
-      const matches = list.sort((a, b) => a.date.localeCompare(b.date));
-      return { team, matches, players: stats(matches) };
-    });
+    const teams = [...byTeam.entries()].sort(([a], [b]) => a.localeCompare(b))
+      .map(([team, list]) => ({ team, matches: list.sort((a, b) => a.date.localeCompare(b.date)) }));
     // Een uur gecachet op het Netlify-CDN: weinig functie-aanroepen, dus binnen het gratis plan.
-    return json({ club: club.name, updated: new Date().toISOString(), teams }, 200, {
+    return json({ club: club.name, updated: new Date().toISOString(), teams, members }, 200, {
       "Netlify-CDN-Cache-Control": "public, s-maxage=3600, stale-while-revalidate=86400",
     });
   } catch (e) {
