@@ -2,7 +2,6 @@ import soap from "soap";
 
 // Instellingen (aan te passen via Netlify > Site configuration > Environment variables)
 const WSDL = process.env.TABT_WSDL || "http://api.vttl.be/0.7/?wsdl";
-const CLUB_NAME = (process.env.CLUB_NAME || "pellenberg").toLowerCase();
 
 const arr = (x) => (x == null ? [] : Array.isArray(x) ? x : [x]);
 const call = async (client, method, args) => (await client[method + "Async"](args))[0];
@@ -13,22 +12,16 @@ const person = (p) => ({
   rank: p.Ranking || "?",
 });
 
-async function findClub(client, season) {
-  if (process.env.CLUB_ID) return { id: process.env.CLUB_ID, name: process.env.CLUB_ID, clubs: new Map() };
-  // Zonder filter en per provincie (1-5) zoeken, want de API filtert soms op ClubCategory.
+let clientP;
+const getClient = () => (clientP ||= soap.createClientAsync(WSDL).catch((e) => { clientP = null; throw e; })); // hergebruikt zolang de functie "warm" is
+
+async function loadClubs(client, season) {
   const lists = await Promise.all([undefined, 1, 2, 3, 4, 5].map((c) =>
     call(client, "GetClubs", c ? { Season: season, ClubCategory: c } : { Season: season })
       .then((r) => arr(r.ClubEntries), () => [])));
   const all = new Map();
   for (const c of lists.flat()) all.set(String(c.UniqueIndex), c);
-  const norm = (s) => String(s).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
-  const hits = [...all.values()].filter((c) => norm(JSON.stringify(c)).includes(norm(CLUB_NAME)));
-  if (!hits.length) {
-    const sample = [...all.values()].slice(0, 5).map((c) => c.Name || JSON.stringify(c)).join(" | ");
-    throw new Error(`Geen club gevonden met "${CLUB_NAME}" (${all.size} clubs opgehaald, bv. ${sample}). Stel CLUB_ID of CLUB_NAME in.`);
-  }
-  const c = hits.find((h) => /vmc/i.test(JSON.stringify(h))) || hits[0];
-  return { id: c.UniqueIndex, name: c.LongName || c.Name, clubs: all };
+  return all;
 }
 
 function venueOf(e, clubs) {
@@ -86,9 +79,9 @@ const json = (body, status = 200, extra = {}) =>
   new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json", ...extra } });
 
 export async function loadData(debug = false) {
-  const client = await soap.createClientAsync(WSDL);
+  const client = await getClient();
   const season = Number((await call(client, "GetSeasons", {})).CurrentSeason);
-  const club = await findClub(client, season);
+  const club = { id: process.env.CLUB_ID || "Vl-B318", name: process.env.CLUB_LABEL || "VMS", clubs: new Map() };
   const [r, mem, prev, ct] = await Promise.all([
     call(client, "GetMatches", { Club: club.id, Season: season, WithDetails: true }),
     call(client, "GetMembers", { Club: club.id, Season: season }).catch((e) => ({ error: String(e.message || e) })),
@@ -120,6 +113,14 @@ export async function loadData(debug = false) {
   }
   const teams = [...byTeam.entries()].sort(([a], [b]) => a.localeCompare(b))
     .map(([team, list]) => ({ team, matches: list.sort((a, b) => a.date.localeCompare(b.date)) }));
+  // Adressen van tegenstanders: enkel de (zware) clubslijst ophalen als de ontmoetingen zelf geen adres meegeven.
+  const raw = new Map(entries.map((e) => [String(e.MatchId), e]));
+  const venuesP = (async () => {
+    const all = teams.flatMap((t) => t.matches);
+    if (!all.some((m) => m.ours == null && !m.isHome && !m.venue)) return;
+    club.clubs = await loadClubs(client, season).catch(() => new Map());
+    for (const m of all) if (!m.venue && raw.get(String(m.id))) m.venue = venueOf(raw.get(String(m.id)), club.clubs);
+  })();
   await Promise.all(teams.map(async (t) => {
     const e = te.find((x) => x.Team === t.team);
     if (!e) return;
@@ -130,6 +131,7 @@ export async function loadData(debug = false) {
       if (!t.ranking.length) t.rankingError = `Geen rangschikking ontvangen (velden: ${Object.keys(rr).join(", ")})`;
     } catch (err) { t.rankingError = String((err && err.message) || err); }
   }));
+  await venuesP;
   // Uitslagen van vorig seizoen, voor "eerder tegen deze tegenstander"
   const history = [];
   for (const e of arr(prev.TeamMatchesEntries || prev.TeamMatchEntries)) {
