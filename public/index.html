@@ -48,6 +48,12 @@ h2{font-size:1.15rem;margin:1.8rem 0 .6rem;font-weight:800}
 .venue{padding:0 .8rem .7rem 3.2rem;font-size:.85rem;color:var(--mute)}
 .venue a,.note a{color:var(--link);font-weight:600}
 .gelijk{color:var(--mute)}
+button.chip{border:0;border-left:3px solid var(--c);width:100%;text-align:left;font-family:inherit;color:inherit;cursor:pointer}
+.tip{position:fixed;z-index:50;max-width:19rem;background:var(--card);color:var(--ink);border:1px solid var(--line);border-left:4px solid var(--c,var(--head));border-radius:10px;padding:.7rem .9rem;box-shadow:0 8px 24px rgba(0,0,0,.2);font-size:.88rem;pointer-events:none}
+.tip[hidden]{display:none}
+.tip b{display:block}
+.tip .k{color:var(--mute);font-size:.8rem}
+.tip div+div{margin-top:.2rem}
 .form{display:flex;gap:.4rem;align-items:center;flex-wrap:wrap;margin:.2rem 0 .9rem}
 .form .note{margin:0 .3rem 0 0}
 .pill{padding:.1rem .6rem;border-radius:999px;font-size:.82rem;font-weight:700;border:1.5px solid currentColor;font-variant-numeric:tabular-nums}
@@ -56,7 +62,8 @@ h2{font-size:1.15rem;margin:1.8rem 0 .6rem;font-weight:800}
 .subn{display:flex;align-items:center;gap:.5rem;font-weight:700;min-width:9rem}
 .sub a,.sub button{font:inherit;font-size:.85rem;color:var(--link);border:1px solid var(--line);border-radius:999px;padding:.25rem .8rem;background:var(--card);text-decoration:none;cursor:pointer}
 .season{margin:0 0 .9rem;font-weight:800;font-size:1.05rem;color:var(--link)}
-tr.me td{font-weight:700;background:color-mix(in srgb,var(--A) 10%,var(--card))}
+tr.me td{font-weight:700;background:color-mix(in srgb,var(--win) 16%,var(--card))}
+tr.me td:first-child{box-shadow:inset 4px 0 0 var(--win)}
 .note{color:var(--mute);font-size:.9rem;margin:.2rem 0 1rem}
 .lnk{font:inherit;font-weight:700;background:none;border:0;padding:0;color:inherit;cursor:pointer;text-align:left}
 .lnk::before{content:"▸";display:inline-block;width:1.1rem;color:var(--mute);transition:transform .15s}
@@ -96,7 +103,7 @@ td:nth-child(2),td:nth-child(3),td:nth-child(4){white-space:nowrap;font-variant-
   </div>
   <nav class="pages" id="pages"></nav>
 </div></header>
-<main id="view"></main>
+<main id="view"><p class="empty">Gegevens laden…</p></main>
 <script>
 const $ = (s) => document.querySelector(s);
 const h = (t, a = {}, ...k) => {
@@ -127,6 +134,28 @@ function filters() {
 function vs(m) {
   return h("span", { class: "vs" }, h("b", {}, m.home), " vs ", h("b", {}, m.away));
 }
+
+const tip = h("div", { class: "tip", role: "tooltip", hidden: "" });
+document.body.append(tip);
+const hideTip = () => { tip.hidden = true; };
+function showTip(el, m) {
+  const res = result(m), v = m.venue, hs = m.ours == null ? history(m) : [];
+  tip.className = "tip t-" + m.team;
+  tip.replaceChildren(
+    h("b", {}, `${m.home} vs ${m.away}`),
+    h("div", { class: "k" }, `Ploeg ${m.team}${m.week ? " · speeldag " + m.week : ""}`),
+    h("div", {}, m.date ? fmt(m.date, { weekday: "long", day: "numeric", month: "long" }) + (m.time ? " · " + m.time : "") : "Datum nog niet bekend"),
+    m.ours == null ? h("div", {}, "Nog te spelen") : h("div", { class: res }, `Uitslag: ${m.ours} - ${m.theirs} (${res})`),
+    v ? h("div", {}, "📍 " + [v.name, v.address].filter(Boolean).join(", ")) : null,
+    hs.length ? h("div", { class: "k" }, "Eerder tegen hen: " + hs.map((x) => `${x.ours} - ${x.theirs}`).join(", ")) : null);
+  tip.hidden = false;
+  const r = el.getBoundingClientRect(), t = tip.getBoundingClientRect();
+  tip.style.left = Math.max(8, Math.min(r.left, innerWidth - t.width - 8)) + "px";
+  tip.style.top = (r.bottom + 6 + t.height > innerHeight ? Math.max(8, r.top - t.height - 6) : r.bottom + 6) + "px";
+}
+addEventListener("scroll", hideTip, true);
+addEventListener("keydown", (e) => e.key === "Escape" && hideTip());
+document.addEventListener("click", (e) => { if (!e.target.closest(".chip")) hideTip(); });
 
 function history(m) {
   const opp = m.isHome ? m.away : m.home;
@@ -166,11 +195,15 @@ function subscribe() {
     const path = `${location.host}/api/kalender/${f}.ics`, web = "webcal://" + path;
     return h("div", { class: "sub" }, h("span", { class: "subn" }, team ? badge(team) : null, label),
       h("a", { href: web }, "Apple / Outlook"),
-      h("a", { href: "https://calendar.google.com/calendar/r?cid=" + web, target: "_blank", rel: "noopener" }, "Google Agenda"),
+      h("button", { onclick: (e) => {
+        navigator.clipboard.writeText("https://" + path).catch(() => {});
+        window.open("https://calendar.google.com/calendar/u/0/r/settings/addbyurl", "_blank", "noopener");
+        e.target.textContent = "Link gekopieerd, plak hem in Google";
+      } }, "Google Agenda"),
       h("button", { onclick: (e) => navigator.clipboard.writeText("https://" + path).then(() => (e.target.textContent = "Gekopieerd ✓")) }, "Kopieer link"));
   };
   return [h("h2", {}, "Kalender op je gsm"),
-    h("p", { class: "note" }, "Abonneer op een ploeg en nieuwe ontmoetingen, wijzigingen en uitslagen komen vanzelf in je agenda. Google Agenda ververst abonnementen traag; Apple en Outlook meestal sneller."),
+    h("p", { class: "note" }, "Abonneer op een ploeg en nieuwe ontmoetingen, wijzigingen en uitslagen komen vanzelf in je agenda. Bij Google Agenda kopieert de knop de link en opent de pagina “Agenda toevoegen via URL”: plak de link daar. Google ververst abonnementen traag, het kan enkele uren duren voor de ontmoetingen verschijnen. Apple en Outlook zijn meestal sneller."),
     h("div", { class: "card subs" }, ...S.data.teams.map((t) => row("Ploeg " + t.team, t.team, t.team)), row("Alle ploegen", "alle", null))];
 }
 
@@ -188,8 +221,11 @@ function calendar() {
     const cell = h("div", { class: "day" + (d.getMonth() !== mo ? " off" : "") + (k === today ? " today" : "") }, h("span", { class: "n" }, d.getDate()));
     for (const m of by[k] || []) {
       const opp = m.isHome ? m.away : m.home;
-      cell.append(h("div", { class: "chip t-" + m.team, title: `${m.home} vs ${m.away}` },
-        h("em", {}, m.team), h("span", {}, m.ours == null ? `${m.time} ${opp}` : `${m.ours} - ${m.theirs} ${opp}`)));
+      const chip = h("button", { type: "button", class: "chip t-" + m.team },
+        h("em", {}, m.team), h("span", {}, m.ours == null ? `${m.time} ${opp}` : `${m.ours} - ${m.theirs} ${opp}`));
+      for (const ev of ["mouseenter", "focus", "click"]) chip.addEventListener(ev, () => showTip(chip, m));
+      for (const ev of ["mouseleave", "blur"]) chip.addEventListener(ev, hideTip);
+      cell.append(chip);
     }
     g.append(cell);
   }
@@ -205,12 +241,9 @@ function calendar() {
 }
 
 function results() {
-  const all = sel(), done = all.filter((m) => m.ours != null).reverse();
-  const next = S.data.teams.filter((t) => S.on.has(t.team)).map((t) => all.find((m) => m.team === t.team && m.ours == null))
-    .filter(Boolean).sort((a, b) => (a.date || "9").localeCompare(b.date || "9"));
-  const block = (title, l, none) => [h("h2", {}, title), l.length ? h("div", { class: "card" }, ...l.map(encounter)) : h("p", { class: "empty" }, none)];
-  return [...block(next.length > 1 ? "Eerstvolgende ontmoetingen" : "Eerstvolgende ontmoeting", next, "Geen komende ontmoetingen."),
-    ...block("Gespeelde ontmoetingen", done, "Nog geen ontmoetingen gespeeld.")];
+  const done = sel().filter((m) => m.ours != null).reverse();
+  return [h("h2", {}, "Gespeelde ontmoetingen"),
+    done.length ? h("div", { class: "card" }, ...done.map(encounter)) : h("p", { class: "empty" }, "Nog geen ontmoetingen gespeeld.")];
 }
 
 function standings() {
@@ -219,7 +252,7 @@ function standings() {
     ["Matchen", "Individuele matchen gewonnen - verloren"], ["Sets", "Sets gewonnen - verloren"], ["Ptn", "Punten"]];
   const v = (x) => (x == null ? "–" : x), pair = (a, b) => (a == null || b == null ? "–" : `${a} - ${b}`);
   const out = [];
-  for (const t of S.data.teams) {
+  for (const t of S.data.teams.filter((x) => S.on.has(x.team))) {
     out.push(h("h2", {}, "Ploeg " + t.team), t.division ? h("p", { class: "note" }, t.division) : null);
     const last = t.matches.filter((m) => m.ours != null).slice(-5);
     if (last.length) out.push(h("div", { class: "form" }, h("span", { class: "note" }, "Laatste " + last.length + " (W gewonnen, G gelijk, V verloren):"),
@@ -229,7 +262,7 @@ function standings() {
       h("td", {}, v(r.won)), h("td", {}, v(r.draw)), h("td", {}, v(r.lost)), h("td", {}, pair(r.mw, r.ml)), h("td", {}, pair(r.sw, r.sl)), h("td", {}, v(r.points))));
     out.push(h("div", { class: "card wrap" }, h("table", {}, h("thead", {}, h("tr", {}, ...cols.map(([a, b]) => h("th", { title: b }, a)))), h("tbody", {}, ...rows))));
   }
-  return out;
+  return out.length ? out : [h("p", { class: "empty" }, "Kies minstens één ploeg.")];
 }
 
 function players() {
@@ -266,19 +299,33 @@ function players() {
 const seasonLabel = () => { const y = 1999 + Number(S.data.season); return `${y}-${y + 1}`; };
 
 function render() {
+  hideTip();
   const page = (location.hash.slice(1) in PAGES) ? location.hash.slice(1) : "kalender";
   $("#pages").replaceChildren(...Object.entries(PAGES).map(([k, v]) => h("a", { href: "#" + k, ...(k === page ? { "aria-current": "page" } : {}) }, v)));
   const body = { kalender: calendar, uitslagen: results, klassementen: standings, spelers: players }[page]();
-  $("#view").replaceChildren(h("p", { class: "season" }, "Seizoen " + seasonLabel()), ...(page === "spelers" || page === "klassementen" ? body : [filters(), ...body]));
+  $("#view").replaceChildren(h("p", { class: "season" }, "Seizoen " + seasonLabel()), ...(page === "spelers" ? body : [filters(), ...body]));
 }
 
+const CK = "vms-data-v1";
+const sig = (x) => JSON.stringify({ ...x, updated: 0 });
+function show(d) {
+  const first = !S.data, same = !first && sig(S.data) === sig(d);
+  S.data = d;
+  if (first) { S.on = new Set(d.teams.map((t) => t.team)); const n = new Date(); S.month = new Date(n.getFullYear(), n.getMonth(), 1); }
+  $("#meta").textContent = "Bijgewerkt op " + new Date(d.updated).toLocaleString("nl-BE", { dateStyle: "medium", timeStyle: "short" });
+  if (!same) render(); // niet opnieuw tekenen als er niets veranderd is (open details blijven open)
+}
+// Eerst de gegevens van het vorige bezoek tonen, dan op de achtergrond verversen.
+try { const c = JSON.parse(localStorage.getItem(CK)); if (c && c.teams && c.members) show(c); } catch {}
 fetch("/api/data").then((r) => r.json()).then((d) => {
   if (d.error) throw new Error(d.error);
-  S.data = d; S.on = new Set(d.teams.map((t) => t.team));
-  const n = new Date(); S.month = new Date(n.getFullYear(), n.getMonth(), 1);
-  $("#meta").textContent = "Bijgewerkt op " + new Date(d.updated).toLocaleString("nl-BE", { dateStyle: "medium", timeStyle: "short" });
-  render();
-}).catch((e) => { $("#meta").textContent = ""; $("#view").replaceChildren(h("p", { class: "err" }, "De gegevens konden niet geladen worden: " + e.message)); });
+  try { localStorage.setItem(CK, JSON.stringify(d)); } catch {}
+  show(d);
+}).catch((e) => {
+  if (S.data) return; // oude gegevens blijven zichtbaar
+  $("#meta").textContent = "";
+  $("#view").replaceChildren(h("p", { class: "err" }, "De gegevens konden niet geladen worden: " + e.message));
+});
 addEventListener("hashchange", () => S.data && render());
 </script>
 </body>
